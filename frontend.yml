@@ -1,0 +1,87 @@
+trigger:
+  branches:
+    include:
+    - main
+variables:
+- group: Docker Credentials
+- group: Docker Images
+stages:
+- stage: __default
+  jobs:
+  - job: Job
+    pool:
+      name: self-hosted
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '16.x'
+      displayName: 'Install Node.js'
+    - task: Npm@1
+      displayName: "Install Angular cli"
+      inputs:
+        command: "custom"
+        customCommand: "install -g @angular/cli"
+    - task: Npm@1
+      inputs:
+        command: 'install'
+        workingDir: 'MongoDBAngular13'
+    - task: CmdLine@2
+      inputs:
+        script: 'npm install karma-junit-reporter --save-dev'
+    - task: Npm@1
+      inputs:
+        command: 'custom'
+        workingDir: 'MongoDBAngular13'
+        customCommand: 'run build'
+    - task: CmdLine@2
+      displayName: "Run Angular tests"
+      inputs:
+        script: |
+          ng test --browsers=ChromeHeadless --code-coverage --watch=false
+        workingDirectory: 'MongoDBAngular13'
+    - task: CmdLine@2
+      inputs:
+        script: 'npm install --global yarn'
+    - task: SonarQubePrepare@5
+      inputs:
+        SonarQube: 'SonarQube'
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: 'final-poc'
+        cliProjectName: 'final-poc'
+        cliSources: '.'
+        extraProperties: 'sonar.java.binaries='
+    - task: SonarQubeAnalyze@5
+    - task: dependency-check-build-task@6
+      inputs:
+        projectName: 'Final-POC'
+        scanPath: '.'
+        format: 'HTML'
+    - task: PublishTestResults@2
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'testresults/junit/unit-test-result.xml'
+        searchFolder: '$(System.DefaultWorkingDirectory)/MongoDBAngular13/'
+        mergeTestResults: true
+        testRunTitle: 'Angular Tests'
+    - task: CmdLine@2
+      inputs:
+        script: |
+          cd MongoDBAngular13
+          mv Dockerfile dist/mongo-dbangular13
+    - task: DockerInstaller@0
+      inputs:
+        dockerVersion: '17.09.0-ce'
+    - task: CmdLine@2
+      inputs:
+        script: |
+          cd MongoDBAngular13/dist/mongo-dbangular13
+          sudo docker build -t $(DockerFrontendImageName) .
+          sudo docker login -u $(DockerUsername) -p $(DockerPassword)
+          sudo docker push $(DockerFrontendImageName)
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.SourcesDirectory)/MongoDBAngular13/dist/'
+        ArtifactName: 'MyArtifact'
+        publishLocation: 'Container'
+

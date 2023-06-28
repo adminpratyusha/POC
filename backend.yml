@@ -1,0 +1,22 @@
+trigger:
+  branches:
+    include:
+    - main
+variables:
+- group: Docker Credentials
+- group: Docker Images
+stages:
+- stage: __default
+  jobs:
+  - job: Job
+    pool:
+      name: self-hosted
+    steps:
+    - task: CmdLine@2
+      inputs:
+        script: |
+          cd Backend
+          sudo docker build -t $(DockerBackendImageName) .
+          sudo docker login -u $(DockerUsername) -p $(DockerPassword)
+          sudo docker push $(DockerBackendImageName)
+
